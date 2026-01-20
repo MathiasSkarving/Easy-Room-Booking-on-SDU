@@ -28,8 +28,9 @@
     "test": "",
     "clean": "rmdir /S /Q dist",
     "compile": "npx tsc",
-    "copy-assets": "robocopy . dist /E /XF tsconfig.json /XD src dist || exit 0",
-    "build": "npm run clean && npm run compile && npm run copy-assets"
+    "copy-assets": "robocopy . dist /E /XF tsconfig.json /XD src dist .git || exit 0",
+    "copy-html": "robocopy src/popup dist/src/popup /E /XF *.ts /XD .git || exit 0",
+    "build": "npm run clean && npm run compile && npm run copy-assets && npm run copy-html"
   },
   "devDependencies": {
     "typescript": "^5.9.3"
