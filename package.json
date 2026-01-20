@@ -26,9 +26,9 @@
   "scripts": {
     "dev": "",
     "test": "",
-    "clean": "del /s /q dist",
+    "clean": "rmdir /S /Q dist",
     "compile": "npx tsc",
-    "copy-assets": "rsync -av --exclude 'tsconfig.json' --exclude 'src' --exclude 'dist' ./ dist/",
+    "copy-assets": "robocopy . dist /E /XF tsconfig.json /XD src dist || exit 0",
     "build": "npm run clean && npm run compile && npm run copy-assets"
   },
   "devDependencies": {
