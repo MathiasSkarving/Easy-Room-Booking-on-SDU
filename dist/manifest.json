@@ -12,5 +12,6 @@
     "permissions": [
         "activeTab",
         "scripting"
-    ]
+    ],
+    "author": "Mathias Skarving"
 }
