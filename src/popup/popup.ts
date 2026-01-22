@@ -1,52 +1,59 @@
-import type { FindRoomJob, BookJob, Room } from "../background/job.ts";
+import type { FindRoomJob, Booking, Room } from "../background/job.ts";
+
+let bookings: Booking[] = [];
+let activeBookingIndex: number | null = null;
+
 
 document.addEventListener('DOMContentLoaded', () => {
+    renderBookingCards();
+    document.getElementById('numRooms')?.addEventListener('change', (e) => {
+        const value = (e.target as HTMLInputElement).valueAsNumber;
+        createBookings(value);
+        renderBookingCards();
+    });
+})
+
+function renderBookingCards() {
     const bookingGrid = document.getElementById('bookingGrid') as HTMLDivElement;
     const numRooms = document.getElementById('numRooms') as HTMLInputElement;
-    const editModal = document.getElementById('editModal') as HTMLDivElement;
+    bookingGrid.innerHTML = '';
 
-    document.getElementById('numRooms')?.addEventListener('change', () => {
-        bookingGrid.innerHTML = '';
-        editModal.innerHTML = '';
-        for (let i = 0; i < numRooms.valueAsNumber; i++) {
+    for (let i = 0; i < numRooms.valueAsNumber; i++) {
+        const card = document.createElement('div');
+        card.className = "booking-card";
+        card.dataset.index = i.toString();
+        card.innerHTML = `
+            <h2>Booking ${i + 1}</h2>
+            <small>Click to edit</small>`;
+        bookingGrid.appendChild(card);
+    }
+}
 
-            const bookingCard = document.createElement('div');
-            bookingCard.classList.add('booking-card');
-            bookingCard.innerHTML = `
-                <h2>Booking ${i + 1}</h2>
-                <small>Click to edit</small>`;
-            bookingGrid.appendChild(bookingCard);
+function createBookings(count: number): void {
+    const username = document.getElementById("SDUusername") as HTMLInputElement;
+    const groupnames: string[] = [];
+    groupnames.push(username.value.toUpperCase());
+    groupnames.push(username.value.charAt(0).toUpperCase() + username.value.slice(1).toLowerCase());
+    groupnames.push(username.value.charAt(0).toLowerCase() + username.value.charAt(1).toUpperCase() + username.value.slice(2).toLowerCase());
+    groupnames.push(username.value.charAt(0).toLowerCase() + username.value.charAt(1).toLowerCase() + username.value.charAt(2).toUpperCase() + username.value.slice(3).toLowerCase());
 
-            bookingCard.addEventListener('click', () => {
-                if (!bookingGrid.classList.contains('hidden')) {
-                    bookingGrid.classList.add('hidden');
-                }
-                editModal.innerHTML = `
-                <fieldset>
-                    <h2 class="section-title">
-                    <svg viewBox="0 0 24 24">
-                        <path
-                            d="M19 4h-1V2h-2v2H8V2H6v2H5c-1.11 0-1.99.9-1.99 2L3 20a2 2 0 002 2h14c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 16H5V9h14v11zM9 11H7v2h2v-2zm4 0h-2v2h2v-2zm4 0h-2v2h2v-2z" />
-                    </svg>
-                    Booking ${i + 1}
-                    </h2>
-                    <input type="text" id="date${i}" placeholder="Date (DD-MM-YYYY)" value="05-12-2025" required>
-                    <input type="text" id="area${i}" placeholder="Area Code (e.g., TEK)" value="TEK">
-                    <button type="button" id="roomButton${i}">Select Room</button>
-                    <input type="time" id="from_time${i}" value="08:00" required>
-                    <input type="time" id="to_time${i}" value="12:00" required>
-                    <button type="button" id="backButton${i}">Back</button>
-                </fieldset>`;
+    for (let i = 0; i < count; i++) {
+        bookings.push({
+            date: "",
+            fromtime: "",
+            totime: "",
+            room: null as unknown as Room,
+            area: "TEK",
+            groupnames: groupnames
+        });
+    }
+}
 
-                const backButton = document.getElementById(`backButton${i}`) as HTMLButtonElement;
-                backButton.addEventListener('click', () => {
-                    bookingGrid.classList.remove('hidden');
-                    editModal.classList.add('hidden');
-                });
-            });
-        }
-    })
-})
+function updateBookings(): void {
+    for (let i = 0; i < bookings.length; i++) {
+        bookings
+    }
+}
 
 function storeRoom(room: Room): void {
     let currentRooms = localStorage.length;

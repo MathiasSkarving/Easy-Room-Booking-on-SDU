@@ -1,21 +1,22 @@
-export interface BookJob {
+export interface Booking {
     date: string;
     room: Room;
-    fromtime: Date;
-    totime: Date;
+    area: string;
+    fromtime: string;
+    totime: string;
     groupnames: string[];
 }
 
 export interface Room {
     roomname: string;
-    areacode: string;
     capacity: number;
+    area: string;
 }
 
 export interface FindRoomJob {
     date: string;
-    fromtime: Date;
-    totime: Date;
+    fromtime: string;
+    totime: string;
     groupnames: string[];
 }
 
