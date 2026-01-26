@@ -33,9 +33,7 @@
     "build": "npm run clean && npm run compile && npm run copy-assets && npm run copy-html"
   },
   "devDependencies": {
+    "@types/chrome": "^0.1.36",
     "typescript": "^5.9.3"
-  },
-  "dependencies": {
-    "@types/chrome": "^0.1.34"
   }
 }

@@ -12,11 +12,3 @@ export interface Room {
     capacity: number;
     area: string;
 }
-
-export interface FindRoomJob {
-    date: string;
-    fromtime: string;
-    totime: string;
-    groupnames: string[];
-}
-

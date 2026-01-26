@@ -1,26 +1,81 @@
-import type { FindRoomJob, Booking, Room } from "../background/job.ts";
+import type { Booking, Room } from "../background/job.ts";
 
 let bookings: Booking[] = [];
 let activeBookingIndex: number | null = null;
-
+let username: string = "";
+let numRooms: number = 0;
 
 document.addEventListener('DOMContentLoaded', () => {
     renderBookingCards();
     document.getElementById('numRooms')?.addEventListener('change', (e) => {
-        const value = (e.target as HTMLInputElement).valueAsNumber;
-        createBookings(value);
+        numRooms = (e.target as HTMLInputElement).valueAsNumber;
+        createBookings();
         renderBookingCards();
+        removeBookings();
+    });
+
+    document.getElementById("SDUusername")?.addEventListener('change', (e) => {
+        username = (e.target as HTMLInputElement).value;
+    });
+
+    document.getElementById("closeEditModal")?.addEventListener('click', () => {
+        closeEditModal();
+    });
+
+    document.getElementById("saveButton")?.addEventListener('click', () => {
+        saveActiveBooking();
+    });
+
+    document.getElementById("findRoomButton")?.addEventListener('click', () => {
+        if (activeBookingIndex === null) {
+            console.error("No active booking index");
+            return;
+        } else {
+            findRooms(bookings[activeBookingIndex], username);
+        }
     });
 })
 
+function removeBookings() {
+    bookings.length = numRooms;
+}
+
+function findRooms(booking: Booking | undefined, username: string) {
+    if (!booking) {
+        console.error("No booking");
+        return;
+    }
+
+    (async () => {
+        const response: Room[] = await chrome.runtime.sendMessage({
+            action: "findRooms",
+            data: {
+                booking: booking,
+                username: username
+            }
+        });
+        console.log(response);
+    })();
+}
+
 function renderBookingCards() {
     const bookingGrid = document.getElementById('bookingGrid') as HTMLDivElement;
-    const numRooms = document.getElementById('numRooms') as HTMLInputElement;
     bookingGrid.innerHTML = '';
 
-    for (let i = 0; i < numRooms.valueAsNumber; i++) {
+    for (let i = 0; i < numRooms; i++) {
         const card = document.createElement('div');
         card.className = "booking-card";
+        card.id = "bookingCard" + i;
+        card.addEventListener('click', () => {
+            if (activeBookingIndex === i) {
+                closeEditModal();
+                activeBookingIndex = null;
+            } else {
+                activeBookingIndex = i;
+                renderEditModal(i);
+            }
+        });
+
         card.dataset.index = i.toString();
         card.innerHTML = `
             <h2>Booking ${i + 1}</h2>
@@ -29,45 +84,94 @@ function renderBookingCards() {
     }
 }
 
-function createBookings(count: number): void {
-    const username = document.getElementById("SDUusername") as HTMLInputElement;
-    const groupnames: string[] = [];
-    groupnames.push(username.value.toUpperCase());
-    groupnames.push(username.value.charAt(0).toUpperCase() + username.value.slice(1).toLowerCase());
-    groupnames.push(username.value.charAt(0).toLowerCase() + username.value.charAt(1).toUpperCase() + username.value.slice(2).toLowerCase());
-    groupnames.push(username.value.charAt(0).toLowerCase() + username.value.charAt(1).toLowerCase() + username.value.charAt(2).toUpperCase() + username.value.slice(3).toLowerCase());
+function renderEditModal(index: number) {
+    const modal = document.getElementById('editModal') as HTMLDivElement;
+    const booking = bookings[index];
 
-    for (let i = 0; i < count; i++) {
-        bookings.push({
-            date: "",
-            fromtime: "",
-            totime: "",
-            room: null as unknown as Room,
-            area: "TEK",
-            groupnames: groupnames
-        });
+    if (!booking) {
+        console.error(`Booking at index ${index} not found`);
+        return;
+    }
+
+    (document.getElementById("date") as HTMLInputElement).value = booking.date;
+    (document.getElementById("fromtime") as HTMLInputElement).value = booking.fromtime;
+    (document.getElementById("totime") as HTMLInputElement).value = booking.totime;
+
+    modal.style.display = 'block';
+
+    for (let i = 0; i < numRooms; i++) {
+        if (i === index) {
+            continue;
+        } else {
+            (document.getElementById("bookingCard" + i) as HTMLDivElement).style.display = 'none';
+        }
     }
 }
 
-function updateBookings(): void {
-    for (let i = 0; i < bookings.length; i++) {
-        bookings
+function closeEditModal() {
+    const modal = document.getElementById('editModal') as HTMLDivElement;
+    modal.style.display = 'none';
+
+    for (let i = 0; i < numRooms; i++) {
+        (document.getElementById("bookingCard" + i) as HTMLDivElement).style.display = 'block';
+    }
+
+    activeBookingIndex = null;
+}
+
+function saveActiveBooking() {
+    if (activeBookingIndex === null) {
+        console.error("No active booking index");
+        return;
+    }
+    const booking = bookings[activeBookingIndex];
+    if (!booking) {
+        console.error(`Booking at index ${activeBookingIndex} not found`);
+        return;
+    }
+    booking.date = (document.getElementById("date") as HTMLInputElement).value;
+    booking.fromtime = (document.getElementById("fromtime") as HTMLInputElement).value;
+    booking.totime = (document.getElementById("totime") as HTMLInputElement).value;
+    booking.groupnames = buildGroupNames(username);
+
+    activeBookingIndex = null;
+
+    closeEditModal();
+}
+
+function createBookings(): void {
+    for (let i = 0; i < numRooms; i++) {
+        if (bookings[i] === undefined) {
+            bookings[i] = {
+                date: "",
+                fromtime: "",
+                totime: "",
+                room: null as unknown as Room,
+                area: "TEK",
+                groupnames: []
+            };
+        }
     }
 }
 
-function storeRoom(room: Room): void {
-    let currentRooms = localStorage.length;
-    localStorage.setItem("selectedRoom" + currentRooms, JSON.stringify(room));
+function buildGroupNames(username: string): string[] {
+    if (username.length < 7) {
+        return [];
+    }
+
+    const groupNames: string[] = [];
+    groupNames.push(username.toUpperCase());
+    groupNames.push(username.charAt(0).toUpperCase() + username.slice(1).toLowerCase());
+    groupNames.push(username.charAt(0).toLowerCase() + username.charAt(1).toUpperCase() + username.slice(2).toLowerCase());
+    groupNames.push(username.charAt(0).toLowerCase() + username.charAt(1).toLowerCase() + username.charAt(2).toUpperCase() + username.slice(3).toLowerCase());
+
+    return groupNames;
 }
 
-function getStoredRooms(): Room[] | null {
-    const foundRooms: Room[] = [];
-    if (localStorage.length === 0) {
-        return null;
-    }
-    for (let i = 0; i < localStorage.length; i++) {
-        foundRooms[i] = JSON.parse(localStorage.getItem("selectedRoom" + i) as string) as Room;
-    }
-    return foundRooms;
+function storeRooms(rooms: Room[]) {
+    localStorage.setItem("selectedRooms", JSON.stringify(rooms));
 }
 
+function getStoredRooms(): Room[] {
+    return JSON.parse(localStorage.getItem("selectedRooms") ?? "[]");
+}
