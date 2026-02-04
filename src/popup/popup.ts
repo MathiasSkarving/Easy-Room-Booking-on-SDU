@@ -1,4 +1,4 @@
-import type { Booking, Room } from "../background/job.ts";
+import type { Booking, Room, Tokens } from "../background/job.ts";
 
 let bookings: Booking[] = [];
 let activeBookingIndex: number | null = null;
@@ -46,6 +46,14 @@ function findRooms(booking: Booking | undefined, username: string) {
         return;
     }
 
+    const tokens = getFreshTokens();
+    if (!tokens) {
+        console.error("Tokens are null");
+        return;
+    } else {
+        booking.tokens = tokens;
+    }
+
     (async () => {
         const response: Room[] = await chrome.runtime.sendMessage({
             action: "findRooms",
@@ -56,6 +64,19 @@ function findRooms(booking: Booking | undefined, username: string) {
         });
         console.log(response);
     })();
+}
+
+function getFreshTokens(): Tokens | null {
+    let viewState: string = (document.querySelector('input[name="__VIEWSTATE"]') as HTMLInputElement).value;
+    let viewStateGenerator: string = (document.querySelector('input[name="__VIEWSTATEGENERATOR"]') as HTMLInputElement).value;
+    let eventValidation: string = (document.querySelector('input[name="__EVENTVALIDATION"]') as HTMLInputElement).value;
+
+    if (viewState === null || viewStateGenerator === null || eventValidation === null) {
+        console.error("Tokens are null");
+        return null;
+    }
+
+    return { viewState, viewStateGenerator, eventValidation };
 }
 
 function renderBookingCards() {
@@ -94,8 +115,8 @@ function renderEditModal(index: number) {
     }
 
     (document.getElementById("date") as HTMLInputElement).value = booking.date;
-    (document.getElementById("fromtime") as HTMLInputElement).value = booking.fromtime;
-    (document.getElementById("totime") as HTMLInputElement).value = booking.totime;
+    (document.getElementById("fromtime") as HTMLInputElement).value = booking.fromTime;
+    (document.getElementById("totime") as HTMLInputElement).value = booking.toTime;
 
     modal.style.display = 'block';
 
@@ -130,9 +151,9 @@ function saveActiveBooking() {
         return;
     }
     booking.date = (document.getElementById("date") as HTMLInputElement).value;
-    booking.fromtime = (document.getElementById("fromtime") as HTMLInputElement).value;
-    booking.totime = (document.getElementById("totime") as HTMLInputElement).value;
-    booking.groupnames = buildGroupNames(username);
+    booking.fromTime = (document.getElementById("fromtime") as HTMLInputElement).value;
+    booking.toTime = (document.getElementById("totime") as HTMLInputElement).value;
+    booking.groupNames = buildGroupNames(username);
 
     activeBookingIndex = null;
 
@@ -144,11 +165,12 @@ function createBookings(): void {
         if (bookings[i] === undefined) {
             bookings[i] = {
                 date: "",
-                fromtime: "",
-                totime: "",
+                fromTime: "",
+                toTime: "",
                 room: null as unknown as Room,
                 area: "TEK",
-                groupnames: []
+                groupNames: [],
+                tokens: null as unknown as Tokens
             };
         }
     }

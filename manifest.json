@@ -13,5 +13,15 @@
         "activeTab",
         "scripting"
     ],
+    "content_scripts": [
+        {
+            "matches": [
+                "*://mitsdu.sdu.dk/booking/Book.aspx/*"
+            ],
+            "js": [
+                "src/popup/popup.js"
+            ]
+        }
+    ],
     "author": "Mathias Skarving"
 }

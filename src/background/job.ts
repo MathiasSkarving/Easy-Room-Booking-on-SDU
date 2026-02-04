@@ -2,13 +2,21 @@ export interface Booking {
     date: string;
     room: Room;
     area: string;
-    fromtime: string;
-    totime: string;
-    groupnames: string[];
+    fromTime: string;
+    toTime: string;
+    groupNames: string[];
+    tokens: Tokens;
 }
 
 export interface Room {
-    roomname: string;
+    roomName: string;
     capacity: number;
     area: string;
+    roomId: string;
+}
+
+export interface Tokens {
+    viewState: string;
+    viewStateGenerator: string;
+    eventValidation: string;
 }

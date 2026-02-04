@@ -37,6 +37,14 @@ function findRooms(booking, username) {
         console.error("No booking");
         return;
     }
+    const tokens = getFreshTokens();
+    if (!tokens) {
+        console.error("Tokens are null");
+        return;
+    }
+    else {
+        booking.tokens = tokens;
+    }
     (async () => {
         const response = await chrome.runtime.sendMessage({
             action: "findRooms",
@@ -47,6 +55,16 @@ function findRooms(booking, username) {
         });
         console.log(response);
     })();
+}
+function getFreshTokens() {
+    let viewState = document.querySelector('input[name="__VIEWSTATE"]').value;
+    let viewStateGenerator = document.querySelector('input[name="__VIEWSTATEGENERATOR"]').value;
+    let eventValidation = document.querySelector('input[name="__EVENTVALIDATION"]').value;
+    if (viewState === null || viewStateGenerator === null || eventValidation === null) {
+        console.error("Tokens are null");
+        return null;
+    }
+    return { viewState, viewStateGenerator, eventValidation };
 }
 function renderBookingCards() {
     const bookingGrid = document.getElementById('bookingGrid');
@@ -80,8 +98,8 @@ function renderEditModal(index) {
         return;
     }
     document.getElementById("date").value = booking.date;
-    document.getElementById("fromtime").value = booking.fromtime;
-    document.getElementById("totime").value = booking.totime;
+    document.getElementById("fromtime").value = booking.fromTime;
+    document.getElementById("totime").value = booking.toTime;
     modal.style.display = 'block';
     for (let i = 0; i < numRooms; i++) {
         if (i === index) {
@@ -111,9 +129,9 @@ function saveActiveBooking() {
         return;
     }
     booking.date = document.getElementById("date").value;
-    booking.fromtime = document.getElementById("fromtime").value;
-    booking.totime = document.getElementById("totime").value;
-    booking.groupnames = buildGroupNames(username);
+    booking.fromTime = document.getElementById("fromtime").value;
+    booking.toTime = document.getElementById("totime").value;
+    booking.groupNames = buildGroupNames(username);
     activeBookingIndex = null;
     closeEditModal();
 }
@@ -122,11 +140,12 @@ function createBookings() {
         if (bookings[i] === undefined) {
             bookings[i] = {
                 date: "",
-                fromtime: "",
-                totime: "",
+                fromTime: "",
+                toTime: "",
                 room: null,
                 area: "TEK",
-                groupnames: []
+                groupNames: [],
+                tokens: null
             };
         }
     }
