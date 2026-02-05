@@ -11,17 +11,22 @@
     },
     "permissions": [
         "activeTab",
-        "scripting"
+        "scripting",
+        "cookies"
     ],
     "content_scripts": [
         {
             "matches": [
-                "*://mitsdu.sdu.dk/booking/Book.aspx/*"
+                "https://mitsdu.sdu.dk/*"
             ],
             "js": [
                 "src/popup/popup.js"
             ]
         }
+    ],
+    "host_permissions": [
+        "https://mitsdu.sdu.dk/*",
+        "https://sso.sdu.dk/*"
     ],
     "author": "Mathias Skarving"
 }

@@ -8,7 +8,6 @@ document.addEventListener('DOMContentLoaded', () => {
         numRooms = e.target.valueAsNumber;
         createBookings();
         renderBookingCards();
-        removeBookings();
     });
     document.getElementById("SDUusername")?.addEventListener('change', (e) => {
         username = e.target.value;
@@ -29,42 +28,58 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 });
-function removeBookings() {
-    bookings.length = numRooms;
-}
-function findRooms(booking, username) {
-    if (!booking) {
-        console.error("No booking");
+async function findRooms(booking, username) {
+    if (!booking)
+        return;
+    const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+    if (!tab?.id) {
+        console.error("No active tab found");
         return;
     }
-    const tokens = getFreshTokens();
+    const results = await chrome.scripting.executeScript({
+        target: { tabId: tab.id },
+        func: getFreshTokens
+    });
+    const tokens = results[0]?.result;
     if (!tokens) {
-        console.error("Tokens are null");
+        alert("Could not find ASP.NET tokens. Are you on the right booking page?");
         return;
     }
-    else {
-        booking.tokens = tokens;
-    }
-    (async () => {
-        const response = await chrome.runtime.sendMessage({
-            action: "findRooms",
-            data: {
-                booking: booking,
-                username: username
-            }
-        });
-        console.log(response);
-    })();
+    booking.tokens = tokens;
+    const response = await chrome.runtime.sendMessage({
+        action: "findRooms",
+        data: { booking, username }
+    });
+    const rooms = getAllRoomsAvailable(response.data);
+    console.log("Rooms found:", rooms);
 }
 function getFreshTokens() {
-    let viewState = document.querySelector('input[name="__VIEWSTATE"]').value;
-    let viewStateGenerator = document.querySelector('input[name="__VIEWSTATEGENERATOR"]').value;
-    let eventValidation = document.querySelector('input[name="__EVENTVALIDATION"]').value;
-    if (viewState === null || viewStateGenerator === null || eventValidation === null) {
-        console.error("Tokens are null");
+    const vs = document.querySelector('input[name="__VIEWSTATE"]');
+    const vsg = document.querySelector('input[name="__VIEWSTATEGENERATOR"]');
+    const ev = document.querySelector('input[name="__EVENTVALIDATION"]');
+    if (!vs || !vsg || !ev) {
+        console.error("ASP.NET Tokens not found in the current DOM.");
         return null;
     }
-    return { viewState, viewStateGenerator, eventValidation };
+    return {
+        viewState: vs.value,
+        viewStateGenerator: vsg.value,
+        eventValidation: ev.value
+    };
+}
+function getAllRoomsAvailable(htmlString) {
+    const parser = new DOMParser();
+    const doc = parser.parseFromString(htmlString, 'text/html');
+    const availableRooms = doc.querySelectorAll('a.room-available');
+    let rooms = [];
+    for (const roomItem of availableRooms) {
+        const roomName = roomItem.querySelector('input.roomname').value || '';
+        const roomId = roomItem.querySelector('input.roomid').value || '';
+        const area = roomItem.querySelector('input.area').value || '';
+        const capacity = parseInt(roomItem.querySelector('input.capacity').value || '0');
+        rooms.push({ roomName, capacity, area, roomId });
+    }
+    return rooms;
 }
 function renderBookingCards() {
     const bookingGrid = document.getElementById('bookingGrid');
@@ -97,9 +112,9 @@ function renderEditModal(index) {
         console.error(`Booking at index ${index} not found`);
         return;
     }
-    document.getElementById("date").value = booking.date;
-    document.getElementById("fromtime").value = booking.fromTime;
-    document.getElementById("totime").value = booking.toTime;
+    document.getElementById("date").value = booking.date || "";
+    document.getElementById("fromtime").value = booking.fromTime || "";
+    document.getElementById("totime").value = booking.toTime || "";
     modal.style.display = 'block';
     for (let i = 0; i < numRooms; i++) {
         if (i === index) {
@@ -136,17 +151,10 @@ function saveActiveBooking() {
     closeEditModal();
 }
 function createBookings() {
+    bookings.length = numRooms;
     for (let i = 0; i < numRooms; i++) {
         if (bookings[i] === undefined) {
-            bookings[i] = {
-                date: "",
-                fromTime: "",
-                toTime: "",
-                room: null,
-                area: "TEK",
-                groupNames: [],
-                tokens: null
-            };
+            bookings[i] = {};
         }
     }
 }

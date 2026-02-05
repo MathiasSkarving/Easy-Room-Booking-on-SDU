@@ -40,10 +40,9 @@ async function handleFindRooms(message: {
         const response = await sendPostRequest('https://mitsdu.sdu.dk/booking/Book.aspx', JSON.stringify(findRoomPayload));
 
         if (response.status !== 200) {
-            sendResponse({ status: response.status });
+            sendResponse({ status: response.status, data: "" });
         } else {
-            const rooms = getAllRoomsAvailable(await response.text());
-            sendResponse({ status: response.status, rooms: rooms });
+            sendResponse({ status: response.status, data: await response.text() });
         }
     }
 
@@ -58,9 +57,9 @@ async function handleAddParticipants(message: {
     }
 }): Promise<{ status: number, tokens: Tokens }> {
 
-    let tokens: Tokens = message.data.booking.tokens;
+    let tokens: Tokens = message.data.booking.tokens || {};
 
-    for (const username of message.data.booking.groupNames) {
+    for (const username of message.data.booking.groupNames || []) {
 
         const participantPayload = buildPayload({
             'ctl00$ScriptManager1': 'ctl00$BodyContent$ParticipantsUP|ctl00$BodyContent$AddParticipantButton',
@@ -90,34 +89,25 @@ async function handleAddParticipants(message: {
     return { status: 200, tokens: tokens };
 }
 
-function getAllRoomsAvailable(htmlString: string): Room[] {
-    const parser = new DOMParser();
-    const doc = parser.parseFromString(htmlString, 'text/html');
-    const availableRooms = doc.querySelectorAll('a.room-available');
-    let rooms: Room[] = [];
-
-    for (const roomItem of availableRooms) {
-        const allText: string = roomItem.textContent.toLowerCase();
-        const roomName: string = (roomItem.querySelector('input.roomname') as HTMLInputElement).value || '';
-        const roomId: string = (roomItem.querySelector('input.roomid') as HTMLInputElement).value || '';
-        const area: string = (roomItem.querySelector('input.area') as HTMLInputElement).value || '';
-        const capacity: number = parseInt((roomItem.querySelector('input.capacity') as HTMLInputElement).value || '0');
-
-        rooms.push({ roomName, capacity, area, roomId });
-    }
-
-    return rooms;
-}
-
 async function updateTokens(response: Response): Promise<Tokens> {
-    const parser = new DOMParser();
-    const doc = parser.parseFromString(await response.text(), 'text/html');
+    const text = await response.text();
+    const parts: string[] = text.split('|');
 
-    let viewState = doc.getElementById('__VIEWSTATE')?.getAttribute('value') || '';
-    let viewStateGenerator = doc.getElementById('__VIEWSTATEGENERATOR')?.getAttribute('value') || '';
-    let eventValidation = doc.getElementById('__EVENTVALIDATION')?.getAttribute('value') || '';
+    const getPipeValue = (id: string): string => {
+        const index = parts.indexOf(id);
+        if (parts[index + 1]) {
+            return parts[index + 1] || "";
+        }
+        return "";
+    };
 
-    return { viewState, viewStateGenerator, eventValidation };
+    const tokens: Tokens = {
+        viewState: getPipeValue('__VIEWSTATE'),
+        viewStateGenerator: getPipeValue('__VIEWSTATEGENERATOR'),
+        eventValidation: getPipeValue('__EVENTVALIDATION')
+    };
+
+    return tokens;
 }
 
 async function sendPostRequest(url: string, payload: string) {
@@ -126,6 +116,7 @@ async function sendPostRequest(url: string, payload: string) {
         headers: {
             'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8'
         },
+        credentials: 'include',
         body: payload
     });
     if (!response.ok) {

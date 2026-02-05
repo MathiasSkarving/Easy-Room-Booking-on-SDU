@@ -28,18 +28,17 @@ async function handleFindRooms(message, sender, sendResponse) {
         });
         const response = await sendPostRequest('https://mitsdu.sdu.dk/booking/Book.aspx', JSON.stringify(findRoomPayload));
         if (response.status !== 200) {
-            sendResponse({ status: response.status });
+            sendResponse({ status: response.status, data: "" });
         }
         else {
-            const rooms = getAllRoomsAvailable(await response.text());
-            sendResponse({ status: response.status, rooms: rooms });
+            sendResponse({ status: response.status, data: await response.text() });
         }
     }
     return true;
 }
 async function handleAddParticipants(message) {
-    let tokens = message.data.booking.tokens;
-    for (const username of message.data.booking.groupNames) {
+    let tokens = message.data.booking.tokens || {};
+    for (const username of message.data.booking.groupNames || []) {
         const participantPayload = buildPayload({
             'ctl00$ScriptManager1': 'ctl00$BodyContent$ParticipantsUP|ctl00$BodyContent$AddParticipantButton',
             'ctl00$BodyContent$datepickerinput': message.data.booking.date,
@@ -63,28 +62,22 @@ async function handleAddParticipants(message) {
     }
     return { status: 200, tokens: tokens };
 }
-function getAllRoomsAvailable(htmlString) {
-    const parser = new DOMParser();
-    const doc = parser.parseFromString(htmlString, 'text/html');
-    const availableRooms = doc.querySelectorAll('a.room-available');
-    let rooms = [];
-    for (const roomItem of availableRooms) {
-        const allText = roomItem.textContent.toLowerCase();
-        const roomName = roomItem.querySelector('input.roomname').value || '';
-        const roomId = roomItem.querySelector('input.roomid').value || '';
-        const area = roomItem.querySelector('input.area').value || '';
-        const capacity = parseInt(roomItem.querySelector('input.capacity').value || '0');
-        rooms.push({ roomName, capacity, area, roomId });
-    }
-    return rooms;
-}
 async function updateTokens(response) {
-    const parser = new DOMParser();
-    const doc = parser.parseFromString(await response.text(), 'text/html');
-    let viewState = doc.getElementById('__VIEWSTATE')?.getAttribute('value') || '';
-    let viewStateGenerator = doc.getElementById('__VIEWSTATEGENERATOR')?.getAttribute('value') || '';
-    let eventValidation = doc.getElementById('__EVENTVALIDATION')?.getAttribute('value') || '';
-    return { viewState, viewStateGenerator, eventValidation };
+    const text = await response.text();
+    const parts = text.split('|');
+    const getPipeValue = (id) => {
+        const index = parts.indexOf(id);
+        if (parts[index + 1]) {
+            return parts[index + 1] || "";
+        }
+        return "";
+    };
+    const tokens = {
+        viewState: getPipeValue('__VIEWSTATE'),
+        viewStateGenerator: getPipeValue('__VIEWSTATEGENERATOR'),
+        eventValidation: getPipeValue('__EVENTVALIDATION')
+    };
+    return tokens;
 }
 async function sendPostRequest(url, payload) {
     const response = await fetch(url, {
@@ -92,6 +85,7 @@ async function sendPostRequest(url, payload) {
         headers: {
             'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8'
         },
+        credentials: 'include',
         body: payload
     });
     if (!response.ok) {
