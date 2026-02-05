@@ -30,7 +30,8 @@
     "compile": "npx tsc",
     "copy-assets": "robocopy . dist /E /XF tsconfig.json /XD src dist .git || exit 0",
     "copy-html": "robocopy src/popup dist/src/popup /E /XF *.ts /XD .git || exit 0",
-    "build": "npm run clean && npm run compile && npm run copy-assets && npm run copy-html"
+    "clean-scripts": "node clean-scripts.js",
+    "build": "npm run clean && npm run compile && npm run copy-assets && npm run copy-html && npm run clean-scripts"
   },
   "devDependencies": {
     "@types/chrome": "^0.1.36",

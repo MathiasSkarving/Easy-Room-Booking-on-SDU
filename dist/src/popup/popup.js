@@ -24,28 +24,21 @@ document.addEventListener('DOMContentLoaded', () => {
             return;
         }
         else {
-            findRooms(bookings[activeBookingIndex], username);
+            findRooms(username);
         }
     });
 });
-async function findRooms(booking, username) {
-    if (!booking)
+async function findRooms(username) {
+    const booking = await getActiveBookingFromModal();
+    if (booking && (booking.date === "" || booking.fromTime === "" || booking.toTime === "" || !booking.tokens?.viewState || !booking.tokens?.viewStateGenerator || !booking.tokens?.eventValidation)) {
+        alert("Please fill in all fields");
         return;
+    }
     const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
     if (!tab?.id) {
         console.error("No active tab found");
         return;
     }
-    const results = await chrome.scripting.executeScript({
-        target: { tabId: tab.id },
-        func: getFreshTokens
-    });
-    const tokens = results[0]?.result;
-    if (!tokens) {
-        alert("Could not find ASP.NET tokens. Are you on the right booking page?");
-        return;
-    }
-    booking.tokens = tokens;
     const response = await chrome.runtime.sendMessage({
         action: "findRooms",
         data: { booking, username }
@@ -53,19 +46,23 @@ async function findRooms(booking, username) {
     const rooms = getAllRoomsAvailable(response.data);
     console.log("Rooms found:", rooms);
 }
-function getFreshTokens() {
-    const vs = document.querySelector('input[name="__VIEWSTATE"]');
-    const vsg = document.querySelector('input[name="__VIEWSTATEGENERATOR"]');
-    const ev = document.querySelector('input[name="__EVENTVALIDATION"]');
-    if (!vs || !vsg || !ev) {
-        console.error("ASP.NET Tokens not found in the current DOM.");
+async function fetchTokensFromPage() {
+    try {
+        const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
+        if (tabs.length === 0) {
+            return;
+        }
+        const activeTab = tabs[0];
+        if (!activeTab?.id) {
+            throw new Error("No active tab found");
+        }
+        const response = await chrome.tabs.sendMessage(activeTab.id, { action: "getTokens" });
+        return response?.tokens || null;
+    }
+    catch (error) {
+        console.error("Error fetching tokens:", error);
         return null;
     }
-    return {
-        viewState: vs.value,
-        viewStateGenerator: vsg.value,
-        eventValidation: ev.value
-    };
 }
 function getAllRoomsAvailable(htmlString) {
     const parser = new DOMParser();
@@ -75,9 +72,12 @@ function getAllRoomsAvailable(htmlString) {
     for (const roomItem of availableRooms) {
         const roomName = roomItem.querySelector('input.roomname').value || '';
         const roomId = roomItem.querySelector('input.roomid').value || '';
-        const area = roomItem.querySelector('input.area').value || '';
-        const capacity = parseInt(roomItem.querySelector('input.capacity').value || '0');
-        rooms.push({ roomName, capacity, area, roomId });
+        const seats = roomItem.querySelector('div.roominfo');
+        let capacity = 0;
+        if (seats) {
+            capacity = parseInt(seats.querySelector('span').innerText.replace(/\D/g, ""));
+        }
+        rooms.push({ roomName, capacity, roomId });
     }
     return rooms;
 }
@@ -150,6 +150,16 @@ function saveActiveBooking() {
     activeBookingIndex = null;
     closeEditModal();
 }
+async function getActiveBookingFromModal() {
+    let booking = {
+        date: document.getElementById("date").value,
+        fromTime: document.getElementById("fromtime").value,
+        toTime: document.getElementById("totime").value,
+        groupNames: buildGroupNames(username),
+        tokens: await fetchTokensFromPage() || {},
+    };
+    return booking;
+}
 function createBookings() {
     bookings.length = numRooms;
     for (let i = 0; i < numRooms; i++) {
@@ -159,7 +169,8 @@ function createBookings() {
     }
 }
 function buildGroupNames(username) {
-    if (username.length < 7) {
+    if (username === "") {
+        alert("Please enter a username");
         return [];
     }
     const groupNames = [];
@@ -175,4 +186,4 @@ function storeRooms(rooms) {
 function getStoredRooms() {
     return JSON.parse(localStorage.getItem("selectedRooms") ?? "[]");
 }
-export {};
+

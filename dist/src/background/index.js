@@ -1,12 +1,19 @@
-chrome.runtime.onMessage.addListener(handleFindRooms);
+chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+    if (message.action === 'findRooms') {
+        handleFindRooms(message, sender, sendResponse);
+        return true;
+    }
+});
 async function handleFindRooms(message, sender, sendResponse) {
     if (message.action !== 'findRooms')
         return;
     const result = await handleAddParticipants(message);
     if (result.status !== 200) {
+        console.log("Failed to add participants");
         sendResponse({ status: result.status });
     }
     else {
+        console.log("Participants added successfully");
         const findRoomPayload = buildPayload({
             'ctl00$ScriptManager1': 'ctl00$BodyContent$ChooseRoomUP|ChooseRoomUP',
             'ctl00$BodyContent$datepickerinput': message.data.booking.date,
@@ -28,17 +35,19 @@ async function handleFindRooms(message, sender, sendResponse) {
         });
         const response = await sendPostRequest('https://mitsdu.sdu.dk/booking/Book.aspx', JSON.stringify(findRoomPayload));
         if (response.status !== 200) {
+            console.log("Failed to find rooms");
             sendResponse({ status: response.status, data: "" });
         }
         else {
+            console.log("Rooms found successfully");
             sendResponse({ status: response.status, data: await response.text() });
         }
     }
-    return true;
 }
 async function handleAddParticipants(message) {
     let tokens = message.data.booking.tokens || {};
     for (const username of message.data.booking.groupNames || []) {
+        console.log("Adding participant:", username);
         const participantPayload = buildPayload({
             'ctl00$ScriptManager1': 'ctl00$BodyContent$ParticipantsUP|ctl00$BodyContent$AddParticipantButton',
             'ctl00$BodyContent$datepickerinput': message.data.booking.date,
@@ -100,4 +109,4 @@ function buildPayload(data) {
     }
     return params;
 }
-export {};
+

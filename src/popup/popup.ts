@@ -30,13 +30,17 @@ document.addEventListener('DOMContentLoaded', () => {
             console.error("No active booking index");
             return;
         } else {
-            findRooms(bookings[activeBookingIndex], username);
+            findRooms(username);
         }
     });
 })
 
-async function findRooms(booking: Booking | undefined, username: string) {
-    if (!booking) return;
+async function findRooms(username: string) {
+    const booking: Booking | null = await getActiveBookingFromModal();
+    if (booking && (booking.date === "" || booking.fromTime === "" || booking.toTime === "" || !booking.tokens?.viewState || !booking.tokens?.viewStateGenerator || !booking.tokens?.eventValidation)) {
+        alert("Please fill in all fields");
+        return;
+    }
 
     const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
 
@@ -44,20 +48,6 @@ async function findRooms(booking: Booking | undefined, username: string) {
         console.error("No active tab found");
         return;
     }
-
-    const results = await chrome.scripting.executeScript({
-        target: { tabId: tab.id },
-        func: getFreshTokens
-    });
-
-    const tokens = results[0]?.result as Tokens | null;
-
-    if (!tokens) {
-        alert("Could not find ASP.NET tokens. Are you on the right booking page?");
-        return;
-    }
-
-    booking.tokens = tokens;
 
     const response: { status: number, data: string } = await chrome.runtime.sendMessage({
         action: "findRooms",
@@ -69,21 +59,25 @@ async function findRooms(booking: Booking | undefined, username: string) {
     console.log("Rooms found:", rooms);
 }
 
-function getFreshTokens(): Tokens | null {
-    const vs = document.querySelector('input[name="__VIEWSTATE"]') as HTMLInputElement;
-    const vsg = document.querySelector('input[name="__VIEWSTATEGENERATOR"]') as HTMLInputElement;
-    const ev = document.querySelector('input[name="__EVENTVALIDATION"]') as HTMLInputElement;
+async function fetchTokensFromPage() {
+    try {
+        const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
+        if (tabs.length === 0) {
+            return;
+        }
+        const activeTab = tabs[0];
+        if (!activeTab?.id) {
+            throw new Error("No active tab found");
+        }
 
-    if (!vs || !vsg || !ev) {
-        console.error("ASP.NET Tokens not found in the current DOM.");
+        const response = await chrome.tabs.sendMessage(activeTab.id, { action: "getTokens" });
+
+        return response?.tokens || null;
+    }
+    catch (error) {
+        console.error("Error fetching tokens:", error);
         return null;
     }
-
-    return {
-        viewState: vs.value,
-        viewStateGenerator: vsg.value,
-        eventValidation: ev.value
-    };
 }
 
 function getAllRoomsAvailable(htmlString: string): Room[] {
@@ -97,10 +91,13 @@ function getAllRoomsAvailable(htmlString: string): Room[] {
     for (const roomItem of availableRooms) {
         const roomName: string = (roomItem.querySelector('input.roomname') as HTMLInputElement).value || '';
         const roomId: string = (roomItem.querySelector('input.roomid') as HTMLInputElement).value || '';
-        const area: string = (roomItem.querySelector('input.area') as HTMLInputElement).value || '';
-        const capacity: number = parseInt((roomItem.querySelector('input.capacity') as HTMLInputElement).value || '0');
+        const seats = roomItem.querySelector('div.roominfo');
+        let capacity: number = 0;
+        if (seats) {
+            capacity = parseInt((seats.querySelector('span') as HTMLInputElement).innerText.replace(/\D/g, ""));
+        }
 
-        rooms.push({ roomName, capacity, area, roomId });
+        rooms.push({ roomName, capacity, roomId });
     }
 
     return rooms;
@@ -187,6 +184,17 @@ function saveActiveBooking() {
     closeEditModal();
 }
 
+async function getActiveBookingFromModal(): Promise<Booking | null> {
+    let booking: Booking = {
+        date: (document.getElementById("date") as HTMLInputElement).value,
+        fromTime: (document.getElementById("fromtime") as HTMLInputElement).value,
+        toTime: (document.getElementById("totime") as HTMLInputElement).value,
+        groupNames: buildGroupNames(username),
+        tokens: await fetchTokensFromPage() || {},
+    };
+    return booking;
+}
+
 function createBookings(): void {
     bookings.length = numRooms;
 
@@ -198,7 +206,8 @@ function createBookings(): void {
 }
 
 function buildGroupNames(username: string): string[] {
-    if (username.length < 7) {
+    if (username === "") {
+        alert("Please enter a username");
         return [];
     }
 
