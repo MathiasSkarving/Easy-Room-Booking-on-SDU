@@ -37,7 +37,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
 async function findRooms(username: string) {
     const booking: Booking | null = await getActiveBookingFromModal();
-    if (booking && (booking.date === "" || booking.fromTime === "" || booking.toTime === "" || !booking.tokens?.viewState || !booking.tokens?.viewStateGenerator || !booking.tokens?.eventValidation)) {
+    if (booking && (booking.date === "" || booking.fromTime === "" || booking.toTime === "")) {
         alert("Please fill in all fields");
         return;
     }
@@ -59,11 +59,11 @@ async function findRooms(username: string) {
     console.log("Rooms found:", rooms);
 }
 
-async function fetchTokensFromPage() {
+async function fetchTokensFromPage(): Promise<Tokens | null> {
     try {
         const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
         if (tabs.length === 0) {
-            return;
+            return null;
         }
         const activeTab = tabs[0];
         if (!activeTab?.id) {
@@ -71,6 +71,7 @@ async function fetchTokensFromPage() {
         }
 
         const response = await chrome.tabs.sendMessage(activeTab.id, { action: "getTokens" });
+        console.log("Tokens fetched from page:", response);
 
         return response?.tokens || null;
     }
@@ -81,14 +82,13 @@ async function fetchTokensFromPage() {
 }
 
 function getAllRoomsAvailable(htmlString: string): Room[] {
-
-
     const parser = new DOMParser();
     const doc = parser.parseFromString(htmlString, 'text/html');
     const availableRooms = doc.querySelectorAll('a.room-available');
     let rooms: Room[] = [];
 
     for (const roomItem of availableRooms) {
+        console.log("Processing room item:", roomItem);
         const roomName: string = (roomItem.querySelector('input.roomname') as HTMLInputElement).value || '';
         const roomId: string = (roomItem.querySelector('input.roomid') as HTMLInputElement).value || '';
         const seats = roomItem.querySelector('div.roominfo');
@@ -106,7 +106,10 @@ function getAllRoomsAvailable(htmlString: string): Room[] {
 function renderBookingCards() {
     const bookingGrid = document.getElementById('bookingGrid') as HTMLDivElement;
     bookingGrid.innerHTML = '';
+    createBookingCards(bookingGrid);
+}
 
+function createBookingCards(grid: HTMLDivElement) {
     for (let i = 0; i < numRooms; i++) {
         const card = document.createElement('div');
         card.className = "booking-card";
@@ -125,9 +128,10 @@ function renderBookingCards() {
         card.innerHTML = `
             <h2>Booking ${i + 1}</h2>
             <small>Click to edit</small>`;
-        bookingGrid.appendChild(card);
+        grid.appendChild(card);
     }
 }
+
 
 function renderEditModal(index: number) {
     const modal = document.getElementById('editModal') as HTMLDivElement;

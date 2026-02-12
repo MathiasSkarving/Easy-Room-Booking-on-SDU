@@ -14,6 +14,7 @@ async function handleFindRooms(message, sender, sendResponse) {
     }
     else {
         console.log("Participants added successfully");
+        console.log("finding rooms with booking data:", message.data.booking);
         const findRoomPayload = buildPayload({
             'ctl00$ScriptManager1': 'ctl00$BodyContent$ChooseRoomUP|ChooseRoomUP',
             'ctl00$BodyContent$datepickerinput': message.data.booking.date,
@@ -21,7 +22,7 @@ async function handleFindRooms(message, sender, sendResponse) {
             'ctl00$BodyContent$ToTime': message.data.booking.toTime,
             'ctl00$BodyContent$ParticipantTB': '',
             'booktype': 'search',
-            'ctl00$BodyContent$SeatsHF': 20,
+            'ctl00$BodyContent$SeatsHF': 2,
             'ctl00$BodyContent$BuildingDDL': message.data.booking.area,
             'ctl00$BodyContent$CommentTB': '',
             'ctl00$BodyContent$RoomHF': '',
@@ -40,7 +41,7 @@ async function handleFindRooms(message, sender, sendResponse) {
         }
         else {
             console.log("Rooms found successfully");
-            sendResponse({ status: response.status, data: await response.text() });
+            sendResponse({ status: response.status, data: response.text });
         }
     }
 }
@@ -63,29 +64,70 @@ async function handleAddParticipants(message) {
             '__EVENTVALIDATION': tokens.eventValidation,
             '__ASYNCPOST': 'true'
         });
-        const response = await sendPostRequest('https://mitsdu.sdu.dk/booking/Book.aspx', JSON.stringify(participantPayload));
-        tokens = await updateTokens(response);
+        const response = await sendPostRequest('https://mitsdu.sdu.dk/booking/Book.aspx', participantPayload.toString());
+        tokens = await updateTokens(response.text);
+        console.log("Tokens after adding participant:", tokens);
         if (response.status !== 200) {
             return { status: response.status, tokens: tokens };
         }
     }
     return { status: 200, tokens: tokens };
 }
+async function parseTokensFromHtml(html) {
+    const extractFromPipes = (key) => {
+        const regex = new RegExp(`<input[^>]*name=["']${key}["'][^>]*value=["']([^"']*)["']`, "gi");
+        const matches = [...html.matchAll(regex)];
+        if (!matches.length)
+            throw new Error(`Failed to extract ${key}`);
+        return matches[matches.length - 1][1];
+    };
+    let viewState = extractFromPipes('__VIEWSTATE');
+    let viewStateGenerator = extractFromPipes('__VIEWSTATEGENERATOR');
+    let eventValidation = extractFromPipes('__EVENTVALIDATION');
+    if (!viewState || !viewStateGenerator || !eventValidation) {
+        console.log("One or more tokens not found in HTML");
+    }
+    return {
+        viewState: viewState || '',
+        viewStateGenerator: viewStateGenerator || '',
+        eventValidation: eventValidation || ''
+    };
+}
 async function updateTokens(response) {
-    const text = await response.text();
-    const parts = text.split('|');
-    const getPipeValue = (id) => {
-        const index = parts.indexOf(id);
-        if (parts[index + 1]) {
-            return parts[index + 1] || "";
+    let tokens = {};
+    if (response.includes('|hiddenField|')) {
+        const extractFromPipes = (key) => {
+            const regex = new RegExp(`\\|hiddenField\\|${key}\\|([^|]*)`);
+            const match = response.match(regex);
+            return match ? match[1] : '';
+        };
+        let viewState = extractFromPipes('__VIEWSTATE');
+        if (typeof viewState === 'string') {
+            tokens.viewState = viewState;
         }
-        return "";
-    };
-    const tokens = {
-        viewState: getPipeValue('__VIEWSTATE'),
-        viewStateGenerator: getPipeValue('__VIEWSTATEGENERATOR'),
-        eventValidation: getPipeValue('__EVENTVALIDATION')
-    };
+        else {
+            console.log("VIEWSTATE not found in response");
+        }
+        let viewStateGenerator = extractFromPipes('__VIEWSTATEGENERATOR');
+        if (typeof viewStateGenerator === 'string') {
+            tokens.viewStateGenerator = viewStateGenerator;
+        }
+        else {
+            console.log("VIEWSTATEGENERATOR not found in response");
+        }
+        let eventValidation = extractFromPipes('__EVENTVALIDATION');
+        if (typeof eventValidation === 'string') {
+            tokens.eventValidation = eventValidation;
+        }
+        else {
+            console.log("EVENTVALIDATION not found in response");
+        }
+        tokens = {
+            viewState: tokens.viewState || '',
+            viewStateGenerator: tokens.viewStateGenerator || '',
+            eventValidation: tokens.eventValidation || ''
+        };
+    }
     return tokens;
 }
 async function sendPostRequest(url, payload) {
@@ -100,7 +142,8 @@ async function sendPostRequest(url, payload) {
     if (!response.ok) {
         throw new Error(`HTTP error! Status: ${response.status}`);
     }
-    return response;
+    const responseText = await response.text();
+    return { status: response.status, text: responseText };
 }
 function buildPayload(data) {
     let params = new URLSearchParams();

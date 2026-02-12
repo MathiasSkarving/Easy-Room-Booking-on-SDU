@@ -30,7 +30,7 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 async function findRooms(username) {
     const booking = await getActiveBookingFromModal();
-    if (booking && (booking.date === "" || booking.fromTime === "" || booking.toTime === "" || !booking.tokens?.viewState || !booking.tokens?.viewStateGenerator || !booking.tokens?.eventValidation)) {
+    if (booking && (booking.date === "" || booking.fromTime === "" || booking.toTime === "")) {
         alert("Please fill in all fields");
         return;
     }
@@ -50,13 +50,14 @@ async function fetchTokensFromPage() {
     try {
         const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
         if (tabs.length === 0) {
-            return;
+            return null;
         }
         const activeTab = tabs[0];
         if (!activeTab?.id) {
             throw new Error("No active tab found");
         }
         const response = await chrome.tabs.sendMessage(activeTab.id, { action: "getTokens" });
+        console.log("Tokens fetched from page:", response);
         return response?.tokens || null;
     }
     catch (error) {
@@ -70,6 +71,7 @@ function getAllRoomsAvailable(htmlString) {
     const availableRooms = doc.querySelectorAll('a.room-available');
     let rooms = [];
     for (const roomItem of availableRooms) {
+        console.log("Processing room item:", roomItem);
         const roomName = roomItem.querySelector('input.roomname').value || '';
         const roomId = roomItem.querySelector('input.roomid').value || '';
         const seats = roomItem.querySelector('div.roominfo');
@@ -84,6 +86,9 @@ function getAllRoomsAvailable(htmlString) {
 function renderBookingCards() {
     const bookingGrid = document.getElementById('bookingGrid');
     bookingGrid.innerHTML = '';
+    createBookingCards(bookingGrid);
+}
+function createBookingCards(grid) {
     for (let i = 0; i < numRooms; i++) {
         const card = document.createElement('div');
         card.className = "booking-card";
@@ -102,7 +107,7 @@ function renderBookingCards() {
         card.innerHTML = `
             <h2>Booking ${i + 1}</h2>
             <small>Click to edit</small>`;
-        bookingGrid.appendChild(card);
+        grid.appendChild(card);
     }
 }
 function renderEditModal(index) {
