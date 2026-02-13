@@ -101,70 +101,53 @@ async function handleAddParticipants(message: {
     return { status: 200, tokens: tokens };
 }
 
-async function parseTokensFromHtml(html: string): Promise<Tokens> {
-    const extractFromPipes = (key: string) => {
-        const regex = new RegExp(
-            `<input[^>]*name=["']${key}["'][^>]*value=["']([^"']*)["']`,
-            "gi"
-        );
-        const matches = [...html.matchAll(regex)];
-        if (!matches.length) throw new Error(`Failed to extract ${key}`);
-        return matches[matches.length - 1]![1];
-    };
+function extractFromHtml(string: string, key: string): string | null {
+    const parts = string.split('|');
 
-    let viewState: string | undefined = extractFromPipes('__VIEWSTATE');
-    let viewStateGenerator: string | undefined = extractFromPipes('__VIEWSTATEGENERATOR');
-    let eventValidation: string | undefined = extractFromPipes('__EVENTVALIDATION');
+    let value = '';
 
-    if (!viewState || !viewStateGenerator || !eventValidation) {
-        console.log("One or more tokens not found in HTML");
+    for (let i = 0; i < parts.length; i++) {
+        if (parts[i] === key) {
+            value = parts[i + 1]!;
+            break;
+        }
     }
 
-    return {
-        viewState: viewState || '',
-        viewStateGenerator: viewStateGenerator || '',
-        eventValidation: eventValidation || ''
-    };
+    return value || null;
 }
-
 
 async function updateTokens(response: string): Promise<Tokens> {
     let tokens: Tokens = {};
 
-    if (response.includes('|hiddenField|')) {
-        const extractFromPipes = (key: string) => {
-            const regex = new RegExp(`\\|hiddenField\\|${key}\\|([^|]*)`);
-            const match = response.match(regex);
-            return match ? match[1] : '';
-        };
-        let viewState = extractFromPipes('__VIEWSTATE');
-        if (typeof viewState === 'string') {
-            tokens.viewState = viewState;
-        } else {
-            console.log("VIEWSTATE not found in response");
-        }
-        let viewStateGenerator = extractFromPipes('__VIEWSTATEGENERATOR');
-        if (typeof viewStateGenerator === 'string') {
-            tokens.viewStateGenerator = viewStateGenerator;
-        } else {
-            console.log("VIEWSTATEGENERATOR not found in response");
-        }
-        let eventValidation = extractFromPipes('__EVENTVALIDATION');
-        if (typeof eventValidation === 'string') {
-            tokens.eventValidation = eventValidation;
-        } else {
-            console.log("EVENTVALIDATION not found in response");
-        }
+    console.log("updating tokesns with response:", response);
 
-        tokens = {
-            viewState: tokens.viewState || '',
-            viewStateGenerator: tokens.viewStateGenerator || '',
-            eventValidation: tokens.eventValidation || ''
-        };
+    let viewState = extractFromHtml(response, '__VIEWSTATE');
+    if (typeof viewState === 'string') {
+        tokens.viewState = viewState;
+    } else {
+        console.log("VIEWSTATE not found in response");
+    }
+    let viewStateGenerator = extractFromHtml(response, '__VIEWSTATEGENERATOR');
+    if (typeof viewStateGenerator === 'string') {
+        tokens.viewStateGenerator = viewStateGenerator;
+    } else {
+        console.log("VIEWSTATEGENERATOR not found in response");
+    }
+    let eventValidation = extractFromHtml(response, '__EVENTVALIDATION');
+    if (typeof eventValidation === 'string') {
+        tokens.eventValidation = eventValidation;
+    } else {
+        console.log("EVENTVALIDATION not found in response");
     }
 
+    tokens = {
+        viewState: tokens.viewState || '',
+        viewStateGenerator: tokens.viewStateGenerator || '',
+        eventValidation: tokens.eventValidation || ''
+    };
     return tokens;
 }
+
 
 async function sendPostRequest(url: string, payload: string): Promise<{ status: number, text: string }> {
     const response = await fetch(url, {
