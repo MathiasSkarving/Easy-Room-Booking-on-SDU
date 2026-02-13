@@ -89,7 +89,8 @@ async function handleAddParticipants(message: {
 
         const response = await sendPostRequest('https://mitsdu.sdu.dk/booking/Book.aspx', participantPayload.toString());
 
-        tokens = await updateTokens(response.text);
+        tokens = await updateTokens(response.text)
+        console.log(typeof tokens);
 
         console.log("Tokens after adding participant:", tokens);
 
