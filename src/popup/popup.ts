@@ -179,6 +179,7 @@ function saveActiveBooking() {
         return;
     }
     booking.date = (document.getElementById("date") as HTMLInputElement).value;
+    booking.area = (document.getElementById("area") as HTMLInputElement).value;
     booking.fromTime = (document.getElementById("fromtime") as HTMLInputElement).value;
     booking.toTime = (document.getElementById("totime") as HTMLInputElement).value;
     booking.groupNames = buildGroupNames(username);
@@ -191,6 +192,7 @@ function saveActiveBooking() {
 async function getActiveBookingFromModal(): Promise<Booking | null> {
     let booking: Booking = {
         date: (document.getElementById("date") as HTMLInputElement).value,
+        area: (document.getElementById("area") as HTMLInputElement).value,
         fromTime: (document.getElementById("fromtime") as HTMLInputElement).value,
         toTime: (document.getElementById("totime") as HTMLInputElement).value,
         groupNames: buildGroupNames(username),

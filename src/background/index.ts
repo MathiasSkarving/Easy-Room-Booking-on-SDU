@@ -1,11 +1,19 @@
 import type { Room, Booking, Tokens } from "./job.ts";
 
+const delay = (delayInms: number) => {
+    return new Promise(resolve => setTimeout(resolve, delayInms));
+};
+
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     if (message.action === 'findRooms') {
         handleFindRooms(message, sender, sendResponse);
         return true;
     }
 });
+
+function formatDate(date: string): string {
+    return date.split("-").reverse().join("-");
+}
 
 async function handleFindRooms(message: {
     action: string,
@@ -24,11 +32,15 @@ async function handleFindRooms(message: {
         sendResponse({ status: result.status });
     } else {
         console.log("Participants added successfully");
-        console.log("finding rooms with booking data:", message.data.booking);
+        console.log("finding rooms with booking data:", result.tokens);
+        let date = "";
+        if (message.data.booking.date) {
+            date = formatDate(message.data.booking.date);
+        }
 
         const findRoomPayload = buildPayload({
             'ctl00$ScriptManager1': 'ctl00$BodyContent$ChooseRoomUP|ChooseRoomUP',
-            'ctl00$BodyContent$datepickerinput': message.data.booking.date,
+            'ctl00$BodyContent$datepickerinput': date,
             'ctl00$BodyContent$FromTime': message.data.booking.fromTime,
             'ctl00$BodyContent$ToTime': message.data.booking.toTime,
             'ctl00$BodyContent$ParticipantTB': '',
@@ -37,7 +49,7 @@ async function handleFindRooms(message: {
             'ctl00$BodyContent$BuildingDDL': message.data.booking.area,
             'ctl00$BodyContent$CommentTB': '',
             'ctl00$BodyContent$RoomHF': '',
-            'ctl00$BodyContent$MethodHF': 'chooseroom',
+            'ctl00$BodyContent$MethodHF': '',
             '__EVENTTARGET': 'ChooseRoomUP',
             '__EVENTARGUMENT': 'ChooseRoom',
             '__VIEWSTATE': result.tokens.viewState,
@@ -46,7 +58,7 @@ async function handleFindRooms(message: {
             '__ASYNCPOST': 'true'
         });
 
-        const response = await sendPostRequest('https://mitsdu.sdu.dk/booking/Book.aspx', JSON.stringify(findRoomPayload));
+        const response = await sendPostRequest('https://mitsdu.sdu.dk/booking/Book.aspx', findRoomPayload.toString());
 
         if (response.status !== 200) {
             console.log("Failed to find rooms");
@@ -68,12 +80,17 @@ async function handleAddParticipants(message: {
 
     let tokens: Tokens = message.data.booking.tokens || {};
 
+    let date = "";
+    if (message.data.booking.date) {
+        date = formatDate(message.data.booking.date);
+    }
+
     for (const username of message.data.booking.groupNames || []) {
         console.log("Adding participant:", username);
 
         const participantPayload = buildPayload({
             'ctl00$ScriptManager1': 'ctl00$BodyContent$ParticipantsUP|ctl00$BodyContent$AddParticipantButton',
-            'ctl00$BodyContent$datepickerinput': message.data.booking.date,
+            'ctl00$BodyContent$datepickerinput': date,
             'ctl00$BodyContent$FromTime': message.data.booking.fromTime,
             'ctl00$BodyContent$ToTime': message.data.booking.toTime,
             'ctl00$BodyContent$ParticipantTB': username,
@@ -97,6 +114,8 @@ async function handleAddParticipants(message: {
         if (response.status !== 200) {
             return { status: response.status, tokens: tokens };
         }
+
+        await delay(200);
     }
 
     return { status: 200, tokens: tokens };
@@ -156,7 +175,6 @@ async function sendPostRequest(url: string, payload: string): Promise<{ status: 
         headers: {
             'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8'
         },
-        credentials: 'include',
         body: payload
     });
     if (!response.ok) {
